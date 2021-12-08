@@ -2,7 +2,7 @@
 name = "anachro-icd"
 version = "0.2.0"
 description = "The Interface Control Document for Anachro Network Protocol"
-repository = "https://github.com/jamesmunns/anachro"
+repository = "https://github.com/anachro-rs/protocol"
 authors = ["James Munns <james@onevariable.com>"]
 edition = "2021"
 readme = "README.md"

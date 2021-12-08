@@ -1,10 +1,10 @@
 [package]
 name = "anachro-client"
-version = "0.1.0"
-description = "The Client Library for Anachro-PC"
-repository = "https://github.com/jamesmunns/anachro"
-authors = ["James Munns <james.munns@ferrous-systems.com>"]
-edition = "2018"
+version = "0.2.0"
+description = "The Client Library for the Anachro Network Protocol"
+repository = "https://github.com/anachro-rs/protocol"
+authors = ["James Munns <james@onevariable.com>"]
+edition = "2021"
 readme = "README.md"
 
 categories = [
@@ -14,23 +14,12 @@ categories = [
 license = "MIT OR Apache-2.0"
 
 [dependencies]
-anachro-icd = { version = "0.1.2", path = "../icd" }
-postcard = "0.5"
+anachro-icd = { version = "0.2.0", path = "../icd" }
+postcard = "0.7.2"
+defmt = "0.3.0"
 
 [dependencies.serde]
 version = "1.0.114"
 default-features = false
 features = ["derive"]
 
-[dependencies.defmt]
-git = "https://github.com/knurling-rs/defmt"
-branch = "main"
-
-[features]
-# do NOT modify these features
-defmt-default = []
-defmt-trace = []
-defmt-debug = []
-defmt-info = []
-defmt-warn = []
-defmt-error = []
