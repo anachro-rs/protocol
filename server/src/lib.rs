@@ -13,14 +13,14 @@ use {
         ManagedString,
     },
     core::default::Default,
-    heapless::{consts, ArrayLength, Vec},
+    heapless::Vec,
 };
 
 pub use anachro_icd::{self, Name, Path, PubSubPath, Uuid, Version};
 use defmt::Format;
 pub use postcard::from_bytes_cobs;
 
-type ClientStore = Vec<Client, consts::U8>;
+type ClientStore = Vec<Client, 8>;
 
 /// The Broker Interface
 ///
@@ -460,8 +460,8 @@ impl ClientState {
 struct ConnectedState {
     name: Name<'static>,
     version: Version,
-    subscriptions: Vec<Path<'static>, consts::U8>,
-    shortcuts: Vec<Shortcut, consts::U8>,
+    subscriptions: Vec<Path<'static>, 8>,
+    shortcuts: Vec<Shortcut, 8>,
 }
 
 #[derive(Debug)]
@@ -502,9 +502,7 @@ pub trait ServerIoOut<'resp> {
     fn push_response(&mut self, resp: Response<'resp>) -> Result<(), ServerIoError>;
 }
 
-impl<'resp, CT> ServerIoOut<'resp> for Vec<Response<'resp>, CT>
-where
-    CT: ArrayLength<Response<'resp>>,
+impl<'resp, const CT: usize> ServerIoOut<'resp> for Vec<Response<'resp>, CT>
 {
     fn push_response(&mut self, resp: Response<'resp>) -> core::result::Result<(), ServerIoError> {
         self.push(resp)

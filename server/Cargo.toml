@@ -1,10 +1,10 @@
 [package]
 name = "anachro-server"
 version = "0.1.0"
-description = "The Server/Broker Library for Anachro-PC"
-repository = "https://github.com/jamesmunns/anachro"
-authors = ["James Munns <james.munns@ferrous-systems.com>"]
-edition = "2018"
+description = "The Server/Broker Library for the Anachro Network Protocol"
+repository = "https://github.com/anachro-rs/protocol"
+authors = ["James Munns <james@onevariable.com>"]
+edition = "2021"
 readme = "README.md"
 
 categories = [
@@ -14,19 +14,7 @@ categories = [
 license = "MIT OR Apache-2.0"
 
 [dependencies]
-anachro-icd = { version = "0.1.3", path = "../icd" }
-heapless = "0.5.5"
-postcard = "0.5"
-
-[dependencies.defmt]
-git = "https://github.com/knurling-rs/defmt"
-branch = "main"
-
-[features]
-# do NOT modify these features
-defmt-default = []
-defmt-trace = []
-defmt-debug = []
-defmt-info = []
-defmt-warn = []
-defmt-error = []
+anachro-icd = { version = "0.2.0", path = "../icd" }
+heapless = "0.7.8"
+postcard = "0.7.2"
+defmt = "0.3.0"
