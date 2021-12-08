@@ -1,10 +1,10 @@
 [package]
 name = "anachro-icd"
-version = "0.1.3"
-description = "The Interface Control Document for Anachro-PC"
+version = "0.2.0"
+description = "The Interface Control Document for Anachro Network Protocol"
 repository = "https://github.com/jamesmunns/anachro"
-authors = ["James Munns <james.munns@ferrous-systems.com>"]
-edition = "2018"
+authors = ["James Munns <james@onevariable.com>"]
+edition = "2021"
 readme = "README.md"
 
 categories = [
@@ -14,7 +14,7 @@ categories = [
 license = "MIT OR Apache-2.0"
 
 [dependencies]
-heapless = "0.5.5"
+heapless = "0.7.8"
 
 [dependencies.serde]
 version = "1.0.114"
@@ -22,7 +22,7 @@ default-features = false
 features = ["derive"]
 
 [dev-dependencies.postcard]
-version = "0.5.1"
+version = "0.7.2"
 default-features = false
 
 [features]

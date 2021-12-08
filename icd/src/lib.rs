@@ -12,7 +12,7 @@
 #![no_std]
 
 use core::{hash::Hash, marker::PhantomData, str::FromStr};
-use heapless::{consts, ArrayLength, String};
+use heapless::String;
 use serde::{
     de::{Deserializer, Visitor},
     ser::Serializer,
@@ -22,11 +22,11 @@ use serde::{
 pub mod arbitrator;
 pub mod component;
 
-/// A type alias for the Maximum Pub/Sub Path
-pub type MaxPathLen = consts::U127;
+/// A const value for the Maximum Pub/Sub Path
+pub const MAX_PATH_LEN: usize = 127;
 
-/// A type alias for the maximum device name
-pub type MaxNameLen = consts::U32;
+/// A const value for the maximum device name
+pub const MAX_NAME_LEN: usize = 32;
 
 /// Publish/Subscribe Path - Short or Long
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
@@ -60,26 +60,22 @@ pub struct Version {
 }
 
 /// A Pub/Sub Path as a Managed String
-pub type Path<'a> = ManagedString<'a, MaxPathLen>;
+pub type Path<'a> = ManagedString<'a, MAX_PATH_LEN>;
 
 /// A device name as a Managed String
-pub type Name<'a> = ManagedString<'a, MaxNameLen>;
+pub type Name<'a> = ManagedString<'a, MAX_NAME_LEN>;
 
 /// A borrowed or owned string
 ///
 /// Basically like CoW, but with heapless::String
 #[derive(Debug, Eq, PartialEq, Clone)]
-pub enum ManagedString<'a, T>
-where
-    T: ArrayLength<u8>,
+pub enum ManagedString<'a, const T: usize>
 {
     Owned(String<T>),
     Borrow(&'a str),
 }
 
-impl<'a, T> Serialize for ManagedString<'a, T>
-where
-    T: ArrayLength<u8>,
+impl<'a, const N: usize> Serialize for ManagedString<'a, N>
 {
     /// We can serialize our managed string as a str
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
@@ -90,9 +86,8 @@ where
     }
 }
 
-impl<'a, 'de: 'a, T> Deserialize<'de> for ManagedString<'a, T>
+impl<'a, 'de: 'a, const N: usize> Deserialize<'de> for ManagedString<'a, N>
 where
-    T: ArrayLength<u8> + Sized,
 {
     /// We can deserialize as a borrowed str
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
@@ -103,31 +98,23 @@ where
     }
 }
 
-struct ManagedStringVisitor<'a, T>
-where
-    T: ArrayLength<u8> + Sized,
+struct ManagedStringVisitor<'a, const N: usize>
 {
-    _t: PhantomData<T>,
     _lt: PhantomData<&'a ()>,
 }
 
-impl<'a, T> ManagedStringVisitor<'a, T>
-where
-    T: ArrayLength<u8> + Sized,
+impl<'a, const N: usize> ManagedStringVisitor<'a, N>
 {
-    fn new() -> ManagedStringVisitor<'a, T> {
+    fn new() -> ManagedStringVisitor<'a, N> {
         Self {
-            _t: PhantomData,
             _lt: PhantomData,
         }
     }
 }
 
-impl<'de: 'a, 'a, T> Visitor<'de> for ManagedStringVisitor<'a, T>
-where
-    T: ArrayLength<u8> + Sized,
+impl<'de: 'a, 'a, const N: usize> Visitor<'de> for ManagedStringVisitor<'a, N>
 {
-    type Value = ManagedString<'a, T>;
+    type Value = ManagedString<'a, N>;
 
     fn expecting(&self, formatter: &mut core::fmt::Formatter) -> core::fmt::Result {
         write!(formatter, "a borrowable str")
@@ -142,9 +129,7 @@ where
     }
 }
 
-impl<'a, T> ManagedString<'a, T>
-where
-    T: ArrayLength<u8>,
+impl<'a, const N: usize> ManagedString<'a, N>
 {
     /// Obtain self as a string slice
     pub fn as_str(&self) -> &str {
@@ -155,7 +140,7 @@ where
     }
 
     /// Retrieve a borrowed copy of the string
-    pub fn as_borrowed(&'a self) -> ManagedString<'a, T> {
+    pub fn as_borrowed(&'a self) -> ManagedString<'a, N> {
         ManagedString::Borrow(self.as_str())
     }
 
@@ -163,12 +148,12 @@ where
     ///
     /// May fail if the heapless::String is not large enough to
     /// contain this slice
-    pub fn try_from_str(input: &str) -> Result<ManagedString<'static, T>, ()> {
+    pub fn try_from_str(input: &str) -> Result<ManagedString<'static, N>, ()> {
         Ok(ManagedString::Owned(String::from_str(input)?))
     }
 
     /// Create a Borrowed string from a given str
-    pub fn borrow_from_str(input: &str) -> ManagedString<T> {
+    pub fn borrow_from_str(input: &str) -> ManagedString<N> {
         ManagedString::Borrow(input)
     }
 
@@ -176,7 +161,7 @@ where
     ///
     /// May fail if the heapless::String is not large enough to
     /// contain this slice
-    pub fn try_to_owned(&self) -> Result<ManagedString<'static, T>, ()> {
+    pub fn try_to_owned(&self) -> Result<ManagedString<'static, N>, ()> {
         ManagedString::try_from_str(self.as_str())
     }
 }
