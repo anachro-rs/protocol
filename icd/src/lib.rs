@@ -29,7 +29,7 @@ pub const MAX_PATH_LEN: usize = 127;
 pub const MAX_NAME_LEN: usize = 32;
 
 /// Publish/Subscribe Path - Short or Long
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, defmt::Format)]
 pub enum PubSubPath<'a> {
     /// A long form, UTF-8 Path
     #[serde(borrow)]
@@ -42,7 +42,7 @@ pub enum PubSubPath<'a> {
 }
 
 /// Device version - SemVer
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Copy)]
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Copy, defmt::Format)]
 pub struct Version {
     /// Major Semver Version
     pub major: u8,
@@ -68,7 +68,7 @@ pub type Name<'a> = ManagedString<'a, MAX_NAME_LEN>;
 /// A borrowed or owned string
 ///
 /// Basically like CoW, but with heapless::String
-#[derive(Debug, Eq, PartialEq, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone, defmt::Format)]
 pub enum ManagedString<'a, const T: usize>
 {
     Owned(String<T>),
@@ -167,7 +167,7 @@ impl<'a, const N: usize> ManagedString<'a, N>
 }
 
 /// A UUID as a block of 16 bytes
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Copy, Hash)]
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Copy, Hash, defmt::Format)]
 pub struct Uuid([u8; 16]);
 
 impl Uuid {
