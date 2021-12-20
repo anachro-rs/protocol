@@ -11,7 +11,6 @@ pub use {
         table::{Table, TableError},
     },
     anachro_icd::{self, arbitrator::SubMsg, ManagedString, Path, PubSubPath, Version},
-    defmt::Format,
     postcard::{from_bytes, from_bytes_cobs, to_slice, to_slice_cobs},
 };
 
@@ -20,7 +19,8 @@ mod client_io;
 mod table;
 
 /// The main Client error type
-#[derive(Debug, PartialEq, Eq, Format)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+#[derive(Debug, PartialEq, Eq)]
 pub enum Error {
     NotActive,
     Busy,

@@ -13,7 +13,8 @@ use serde::{Deserialize, Serialize};
 ///
 /// These are all messages that are sent FROM the Arbitrator,
 /// TO the Components/Clients
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, defmt::Format)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq)]
 pub enum Arbitrator<'a> {
     /// Control messages
     ///
@@ -87,7 +88,8 @@ pub enum Arbitrator<'a> {
 /// An Arbitrator Response to a Pub/Sub message
 ///
 /// These are any Arbitrator -> Client relevant messages
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, defmt::Format)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq)]
 pub enum PubSubResponse<'a> {
     /// Subscription Acknowledgement
     ///
@@ -109,7 +111,8 @@ pub enum PubSubResponse<'a> {
 ///
 /// This is a message that has been subscribed to by a
 /// client.
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, defmt::Format)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq)]
 pub struct SubMsg<'a> {
     /// The path that this message was sent to
     ///
@@ -127,7 +130,8 @@ pub struct SubMsg<'a> {
 /// This is the 'control channel', used for establishing
 /// and managing connections between the Arbitrator and
 /// Client(s).
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, defmt::Format)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub struct Control {
     /// Sequence Number
     ///
@@ -145,7 +149,8 @@ pub struct Control {
 /// Control Response
 ///
 /// A successful response to a Client's request
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Copy, defmt::Format)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Copy)]
 pub enum ControlResponse {
     /// The client/component has registered
     ComponentRegistration(Uuid),
@@ -155,14 +160,16 @@ pub enum ControlResponse {
 }
 
 /// Control Message Errors
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Copy, defmt::Format)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Copy)]
 pub enum ControlError {
     NoWildcardsInShorts,
     ResetConnection,
 }
 
 /// Publish/Subscribe Errors
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Copy, defmt::Format)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Copy)]
 pub enum PubSubError {}
 
 #[cfg(test)]

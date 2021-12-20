@@ -13,7 +13,8 @@ use serde::{Deserialize, Serialize};
 ///
 /// This is the primary message sent FROM the peripheral
 /// Component/Client, TO the central Arbitrator.
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, defmt::Format)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub enum Component<'a> {
     /// Control Messages
     ///
@@ -33,7 +34,8 @@ pub enum Component<'a> {
 ///
 /// These messages are used to communicate on the Pub/Sub
 /// communication layer
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, defmt::Format)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub struct PubSub<'a> {
     /// The path in question, common to all message types
     #[serde(borrow)]
@@ -46,7 +48,8 @@ pub struct PubSub<'a> {
 /// Pub/Sub Message Type
 ///
 /// The specific kind of pub/sub message
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, defmt::Format)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub enum PubSubType<'a> {
     /// Publish Message
     ///
@@ -67,7 +70,8 @@ pub enum PubSubType<'a> {
 /// Control Messages
 ///
 /// These messages are used to communicate on the control layer
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, defmt::Format)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub struct Control<'a> {
     /// Sequence Number
     ///
@@ -85,7 +89,8 @@ pub struct Control<'a> {
 /// Control Message Type
 ///
 /// The specific kind of Control Message
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, defmt::Format)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub enum ControlType<'a> {
     /// Register Component
     ///
@@ -105,7 +110,8 @@ pub enum ControlType<'a> {
 
 /// Information about this Component/Client needed for
 /// registration
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, defmt::Format)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub struct ComponentInfo<'a> {
     /// The name of the Client/Component
     #[serde(borrow)]
@@ -116,7 +122,8 @@ pub struct ComponentInfo<'a> {
 }
 
 /// Pub/Sub Short Code Registration
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, defmt::Format)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub struct PubSubShort<'a> {
     /// The 'long' UTF-8 path to register
     pub long_name: &'a str,
