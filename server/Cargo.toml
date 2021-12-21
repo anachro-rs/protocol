@@ -18,3 +18,14 @@ anachro-icd = { version = "0.2.0", path = "../icd" }
 heapless = "0.7.8"
 postcard = "0.7.2"
 defmt = "0.3.0"
+
+[dependencies.byte-slab]
+version = "0.2.2"
+default-features = false
+features = ["defmt"]
+# TODO: How to activate defmt features conditionally?
+# For now, the client needs to activate the defmt feature
+# if they want it
+
+[dependencies.byte-slab-derive]
+version = "0.2.1"
