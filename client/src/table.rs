@@ -31,7 +31,7 @@ pub trait Table: Sized {
     fn pub_paths() -> &'static [&'static str];
 
     /// Create a Table item from a given SubMsg`
-    fn from_pub_sub<'a>(msg: &'a SubMsg<'a>) -> Result<Self, TableError>;
+    fn from_pub_sub<'a, const N: usize, const SZ: usize>(msg: &'a SubMsg<'a, N, SZ>) -> Result<Self, TableError>;
 }
 
 /// A macro for defining a publish and subscribe table

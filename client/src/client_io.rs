@@ -35,10 +35,10 @@ pub enum ClientIoError {
 }
 
 /// A trait for defining the IO layer for a given client
-pub trait ClientIo {
+pub trait ClientIo<const N: usize, const SZ: usize> {
     /// Attempt to receive one message FROM the Arbitrator/Broker, TO the Client
-    fn recv(&mut self) -> Result<Option<Arbitrator>, ClientIoError>;
+    fn recv(&mut self) -> Result<Option<Arbitrator<'static, N, SZ>>, ClientIoError>;
 
     /// Attempt to send one message TO the Arbitrator/Broker, FROM the Client
-    fn send(&mut self, msg: &Component) -> Result<(), ClientIoError>;
+    fn send(&mut self, msg: Component<'static, N, SZ>) -> Result<(), ClientIoError>;
 }

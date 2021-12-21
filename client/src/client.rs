@@ -4,6 +4,7 @@
 //! the state of a connection, and process any incoming or outgoing messages
 
 use {
+    core::ops::Deref,
     crate::{client_io::ClientIo, table::Table, Error, RecvMsg},
     anachro_icd::{
         self,
@@ -12,8 +13,9 @@ use {
             Component, ComponentInfo, Control as CControl, ControlType, PubSub, PubSubShort,
             PubSubType,
         },
-        ManagedString, Name, Path, PubSubPath, Uuid, Version,
+        Name, Path, PubSubPath, Uuid, Version,
     },
+    byte_slab::{ManagedArcStr, ManagedArcSlab},
 };
 
 /// The shortcode offset used for Publish topics
@@ -49,10 +51,10 @@ impl ClientState {
 ///
 /// This is the primary interface used by clients. It is used to track
 /// the state of a connection, and process any incoming or outgoing messages
-pub struct Client {
+pub struct Client<const N: usize, const SZ: usize> {
     state: ClientState,
     // TODO: This should probably just be a &'static str
-    name: Name<'static>,
+    name: Name<'static, N, SZ>,
     version: Version,
     ctr: u16,
     sub_paths: &'static [&'static str],
@@ -63,7 +65,7 @@ pub struct Client {
     current_idx: usize,
 }
 
-impl Client {
+impl<const N: usize, const SZ: usize> Client<N, SZ> {
     /// Create a new client instance
     ///
     /// ## Parameters
@@ -110,7 +112,7 @@ impl Client {
     /// 10ms, a `timeout_ticks: Some(100)` would automatically timeout after
     /// 1s of waiting for a response.
     pub fn new(
-        name: &str,
+        name: ManagedArcStr<'static, N, SZ>,
         version: Version,
         ctr_init: u16,
         sub_paths: &'static [&'static str],
@@ -118,7 +120,7 @@ impl Client {
         timeout_ticks: Option<u8>,
     ) -> Self {
         Self {
-            name: Name::try_from_str(name).unwrap(),
+            name,
             version,
             ctr: ctr_init,
             state: ClientState::Disconnected,
@@ -180,18 +182,18 @@ impl Client {
     /// The serialized payload to publish. This is typically created by using
     /// the `Table::serialize()` method, which returns a path and the serialized
     /// payload
-    pub fn publish<'a, 'b: 'a, C: ClientIo>(
+    pub fn publish<'a, 'b: 'a, C: ClientIo<N, SZ>>(
         &'b self,
         cio: &mut C,
-        path: &'a str,
-        payload: &'a [u8],
+        path: ManagedArcStr<'static, N, SZ>,
+        payload: ManagedArcSlab<'static, N, SZ>,
     ) -> Result<(), Error> {
         #[cfg(feature = "defmt")] defmt::info!("Publishing message.");
         self.state.as_active()?;
 
-        let path = match self.pub_short_paths.iter().position(|pth| &path == pth) {
+        let path = match self.pub_short_paths.iter().position(|pth| &path.deref() == pth) {
             Some(short) => PubSubPath::Short((short as u16) | PUBLISH_SHORTCODE_OFFSET),
-            None => PubSubPath::Long(ManagedString::Borrow(path)),
+            None => PubSubPath::Long(path),
         };
 
         let msg = Component::PubSub(PubSub {
@@ -199,7 +201,7 @@ impl Client {
             ty: PubSubType::Pub { payload },
         });
 
-        cio.send(&msg)?;
+        cio.send(msg)?;
 
         Ok(())
     }
@@ -217,11 +219,11 @@ impl Client {
     ///
     /// The `anachro-icd::matches` function can be used to compare if a topic
     /// matches a given fixed or wildcard path, if necessary.
-    pub fn process_one<C: ClientIo, T: Table>(
+    pub fn process_one<C: ClientIo<N, SZ>, T: Table>(
         &mut self,
         cio: &mut C,
-    ) -> Result<Option<RecvMsg<T>>, Error> {
-        let mut response: Option<RecvMsg<T>> = None;
+    ) -> Result<Option<RecvMsg<T, N, SZ>>, Error> {
+        let mut response: Option<RecvMsg<T, N, SZ>> = None;
 
         match &mut self.state {
             // =====================================
@@ -261,13 +263,13 @@ impl Client {
                 if self.timeout_violated() {
                     #[cfg(feature = "defmt")] defmt::info!("Sub timeout. Resending");
                     let msg = Component::PubSub(PubSub {
-                        path: PubSubPath::Long(Path::borrow_from_str(
+                        path: PubSubPath::Long(ManagedArcStr::Borrowed(
                             self.sub_paths[self.current_idx],
                         )),
                         ty: PubSubType::Sub,
                     });
 
-                    cio.send(&msg)?;
+                    cio.send(msg)?;
 
                     self.current_tick = 0;
                 }
@@ -293,12 +295,12 @@ impl Client {
                     let msg = Component::Control(CControl {
                         seq: self.ctr,
                         ty: ControlType::RegisterPubSubShortId(PubSubShort {
-                            long_name: self.sub_paths[self.current_idx],
+                            long_name: ManagedArcStr::Borrowed(self.sub_paths[self.current_idx]),
                             short_id: self.current_idx as u16,
                         }),
                     });
 
-                    cio.send(&msg)?;
+                    cio.send(msg)?;
 
                     self.current_tick = 0;
                 }
@@ -314,12 +316,12 @@ impl Client {
                     let msg = Component::Control(CControl {
                         seq: self.ctr,
                         ty: ControlType::RegisterPubSubShortId(PubSubShort {
-                            long_name: self.pub_short_paths[self.current_idx],
+                            long_name: ManagedArcStr::Borrowed(self.pub_short_paths[self.current_idx]),
                             short_id: (self.current_idx as u16) | PUBLISH_SHORTCODE_OFFSET,
                         }),
                     });
 
-                    cio.send(&msg)?;
+                    cio.send(msg)?;
 
                     self.current_tick = 0;
                 }
@@ -339,7 +341,7 @@ impl Client {
 
 // Private interfaces for the client. These are largely used to
 // process incoming messages and handle state
-impl Client {
+impl<const N: usize, const SZ: usize> Client<N, SZ> {
     /// Have we reached the timeout limit provided by the user?
     fn timeout_violated(&self) -> bool {
         match self.timeout_ticks {
@@ -350,7 +352,7 @@ impl Client {
     }
 
     /// Process messages while in a `ClientState::Disconnected` state
-    fn disconnected<C: ClientIo>(&mut self, cio: &mut C) -> Result<(), Error> {
+    fn disconnected<C: ClientIo<N, SZ>>(&mut self, cio: &mut C) -> Result<(), Error> {
         self.ctr += 1;
 
         #[cfg(feature = "defmt")] defmt::info!("Disconnected -> Pending Registration");
@@ -358,12 +360,12 @@ impl Client {
         let resp = Component::Control(CControl {
             seq: self.ctr,
             ty: ControlType::RegisterComponent(ComponentInfo {
-                name: self.name.as_borrowed(),
+                name: self.name.clone(),
                 version: self.version,
             }),
         });
 
-        cio.send(&resp)?;
+        cio.send(resp)?;
 
         #[cfg(feature = "defmt")] defmt::info!("PR sent.");
 
@@ -374,7 +376,7 @@ impl Client {
     }
 
     /// Process messages while in a `ClientState::PendingRegistration state`
-    fn pending_registration<C: ClientIo>(&mut self, cio: &mut C) -> Result<(), Error> {
+    fn pending_registration<C: ClientIo<N, SZ>>(&mut self, cio: &mut C) -> Result<(), Error> {
         let msg = cio.recv()?;
         let msg = match msg {
             Some(msg) => msg,
@@ -414,7 +416,7 @@ impl Client {
     }
 
     /// Process messages while in a `ClientState::Registered` state
-    fn registered<C: ClientIo>(&mut self, cio: &mut C) -> Result<(), Error> {
+    fn registered<C: ClientIo<N, SZ>>(&mut self, cio: &mut C) -> Result<(), Error> {
         if self.sub_paths.is_empty() {
             #[cfg(feature = "defmt")] defmt::info!("No subscriptions");
             self.state = ClientState::Subscribed;
@@ -422,11 +424,11 @@ impl Client {
         } else {
             #[cfg(feature = "defmt")] defmt::info!("Start subscribing");
             let msg = Component::PubSub(PubSub {
-                path: PubSubPath::Long(Path::borrow_from_str(self.sub_paths[0])),
+                path: PubSubPath::Long(Path::Borrowed(self.sub_paths[0])),
                 ty: PubSubType::Sub,
             });
 
-            cio.send(&msg)?;
+            cio.send(msg)?;
 
             self.state = ClientState::Subscribing;
             self.current_idx = 0;
@@ -437,7 +439,7 @@ impl Client {
     }
 
     /// Process messages while in a `ClientState::Subscribing` state
-    fn subscribing<C: ClientIo>(&mut self, cio: &mut C) -> Result<(), Error> {
+    fn subscribing<C: ClientIo<N, SZ>>(&mut self, cio: &mut C) -> Result<(), Error> {
         let msg = cio.recv()?;
         let msg = match msg {
             Some(msg) => msg,
@@ -451,20 +453,20 @@ impl Client {
             path: PubSubPath::Long(pth),
         })) = msg
         {
-            if pth.as_str() == self.sub_paths[self.current_idx] {
+            if pth.deref() == self.sub_paths[self.current_idx] {
                 self.current_idx += 1;
                 if self.current_idx >= self.sub_paths.len() {
                     self.state = ClientState::Subscribed;
                     self.current_tick = 0;
                 } else {
                     let msg = Component::PubSub(PubSub {
-                        path: PubSubPath::Long(Path::borrow_from_str(
+                        path: PubSubPath::Long(Path::Borrowed(
                             self.sub_paths[self.current_idx],
                         )),
                         ty: PubSubType::Sub,
                     });
 
-                    cio.send(&msg)?;
+                    cio.send(msg)?;
 
                     self.state = ClientState::Subscribing;
                     self.current_tick = 0;
@@ -480,7 +482,7 @@ impl Client {
     }
 
     /// Process messages while in a `ClientState::Subscribed` state
-    fn subscribed<C: ClientIo>(&mut self, cio: &mut C) -> Result<(), Error> {
+    fn subscribed<C: ClientIo<N, SZ>>(&mut self, cio: &mut C) -> Result<(), Error> {
         match (self.sub_paths.len(), self.pub_short_paths.len()) {
             (0, 0) => {
                 self.state = ClientState::Active;
@@ -491,12 +493,12 @@ impl Client {
                 let msg = Component::Control(CControl {
                     seq: self.ctr,
                     ty: ControlType::RegisterPubSubShortId(PubSubShort {
-                        long_name: self.pub_short_paths[0],
+                        long_name: ManagedArcStr::Borrowed(self.pub_short_paths[0]),
                         short_id: PUBLISH_SHORTCODE_OFFSET,
                     }),
                 });
 
-                cio.send(&msg)?;
+                cio.send(msg)?;
 
                 self.state = ClientState::ShortCodingPub;
                 self.current_tick = 0;
@@ -509,12 +511,12 @@ impl Client {
                 let msg = Component::Control(CControl {
                     seq: self.ctr,
                     ty: ControlType::RegisterPubSubShortId(PubSubShort {
-                        long_name: self.sub_paths[0],
+                        long_name: ManagedArcStr::Borrowed(self.sub_paths[0]),
                         short_id: 0x0000,
                     }),
                 });
 
-                cio.send(&msg)?;
+                cio.send(msg)?;
 
                 self.state = ClientState::ShortCodingSub;
                 self.current_tick = 0;
@@ -525,7 +527,7 @@ impl Client {
     }
 
     /// Process messages while in a `ClientState::ShortcodingSub` state
-    fn shortcoding_sub<C: ClientIo>(&mut self, cio: &mut C) -> Result<(), Error> {
+    fn shortcoding_sub<C: ClientIo<N, SZ>>(&mut self, cio: &mut C) -> Result<(), Error> {
         let msg = cio.recv()?;
         let msg = match msg {
             Some(msg) => msg,
@@ -553,12 +555,12 @@ impl Client {
                         let msg = Component::Control(CControl {
                             seq: self.ctr,
                             ty: ControlType::RegisterPubSubShortId(PubSubShort {
-                                long_name: self.pub_short_paths[0],
+                                long_name: ManagedArcStr::Borrowed(self.pub_short_paths[0]),
                                 short_id: PUBLISH_SHORTCODE_OFFSET,
                             }),
                         });
 
-                        cio.send(&msg)?;
+                        cio.send(msg)?;
 
                         self.current_tick = 0;
                         self.current_idx = 0;
@@ -571,12 +573,12 @@ impl Client {
                     let msg = Component::Control(CControl {
                         seq: self.ctr,
                         ty: ControlType::RegisterPubSubShortId(PubSubShort {
-                            long_name: self.sub_paths[self.current_idx],
+                            long_name: ManagedArcStr::Borrowed(self.sub_paths[self.current_idx]),
                             short_id: self.current_idx as u16,
                         }),
                     });
 
-                    cio.send(&msg)?;
+                    cio.send(msg)?;
 
                     self.current_tick = 0;
                 }
@@ -591,7 +593,7 @@ impl Client {
     }
 
     /// Process messages while in a `ClientState::ShortcodingPub` state
-    fn shortcoding_pub<C: ClientIo>(&mut self, cio: &mut C) -> Result<(), Error> {
+    fn shortcoding_pub<C: ClientIo<N, SZ>>(&mut self, cio: &mut C) -> Result<(), Error> {
         let msg = cio.recv()?;
         let msg = match msg {
             Some(msg) => msg,
@@ -618,12 +620,12 @@ impl Client {
                     let msg = Component::Control(CControl {
                         seq: self.ctr,
                         ty: ControlType::RegisterPubSubShortId(PubSubShort {
-                            long_name: self.pub_short_paths[self.current_idx],
+                            long_name: ManagedArcStr::Borrowed(self.pub_short_paths[self.current_idx]),
                             short_id: ((self.current_idx as u16) | PUBLISH_SHORTCODE_OFFSET),
                         }),
                     });
 
-                    cio.send(&msg)?;
+                    cio.send(msg)?;
 
                     self.current_tick = 0;
                 }
@@ -638,7 +640,7 @@ impl Client {
     }
 
     /// Process messages while in a Connected state
-    fn active<C: ClientIo, T: Table>(&mut self, cio: &mut C) -> Result<Option<RecvMsg<T>>, Error> {
+    fn active<C: ClientIo<N, SZ>, T: Table>(&mut self, cio: &mut C) -> Result<Option<RecvMsg<T, N, SZ>>, Error> {
         let msg = cio.recv()?;
         let pubsub = match msg {
             Some(Arbitrator::PubSub(Ok(PubSubResponse::SubMsg(ref ps)))) => ps,
@@ -654,7 +656,7 @@ impl Client {
         // Determine the path
         let path = match &pubsub.path {
             PubSubPath::Short(sid) => {
-                Path::Borrow(
+                Path::Borrowed(
                 *self
                     .sub_paths
                     .get(*sid as usize)
@@ -662,7 +664,7 @@ impl Client {
                 )
             },
             PubSubPath::Long(ms) => {
-                ms.try_to_owned().map_err(|_| Error::UnexpectedMessage)?
+                ms.clone()
             },
         };
 

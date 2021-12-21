@@ -7,7 +7,7 @@
 //! message sent by Component/Clients.
 
 use crate::{PubSubPath, Version};
-use byte_slab::ManagedArcStr;
+use byte_slab::{ManagedArcStr, ManagedArcSlab};
 use serde::{Deserialize, Serialize};
 use byte_slab_derive::Reroot;
 
@@ -16,7 +16,7 @@ use byte_slab_derive::Reroot;
 /// This is the primary message sent FROM the peripheral
 /// Component/Client, TO the central Arbitrator.
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Reroot)]
+#[derive(Debug, Serialize, Deserialize, Clone, Reroot)]
 pub enum Component<'a, const N: usize, const SZ: usize> {
     /// Control Messages
     ///
@@ -37,7 +37,7 @@ pub enum Component<'a, const N: usize, const SZ: usize> {
 /// These messages are used to communicate on the Pub/Sub
 /// communication layer
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Reroot)]
+#[derive(Debug, Serialize, Deserialize, Clone, Reroot)]
 pub struct PubSub<'a, const N: usize, const SZ: usize> {
     /// The path in question, common to all message types
     #[serde(borrow)]
@@ -51,7 +51,7 @@ pub struct PubSub<'a, const N: usize, const SZ: usize> {
 ///
 /// The specific kind of pub/sub message
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Reroot)]
+#[derive(Debug, Serialize, Deserialize, Clone, Reroot)]
 pub enum PubSubType<'a, const N: usize, const SZ: usize> {
     /// Publish Message
     ///
@@ -59,7 +59,7 @@ pub enum PubSubType<'a, const N: usize, const SZ: usize> {
 
     Pub {
         #[serde(borrow)]
-        payload: ManagedArcStr<'a, N, SZ>,
+        payload: ManagedArcSlab<'a, N, SZ>,
     },
 
     /// Subscribe Message
@@ -77,7 +77,7 @@ pub enum PubSubType<'a, const N: usize, const SZ: usize> {
 ///
 /// These messages are used to communicate on the control layer
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Reroot)]
+#[derive(Debug, Serialize, Deserialize, Clone, Reroot)]
 pub struct Control<'a, const N: usize, const SZ: usize> {
     /// Sequence Number
     ///
@@ -96,7 +96,7 @@ pub struct Control<'a, const N: usize, const SZ: usize> {
 ///
 /// The specific kind of Control Message
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Reroot)]
+#[derive(Debug, Serialize, Deserialize, Clone, Reroot)]
 pub enum ControlType<'a, const N: usize, const SZ: usize> {
     /// Register Component
     ///
@@ -117,7 +117,7 @@ pub enum ControlType<'a, const N: usize, const SZ: usize> {
 /// Information about this Component/Client needed for
 /// registration
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Reroot)]
+#[derive(Debug, Serialize, Deserialize, Clone, Reroot)]
 pub struct ComponentInfo<'a, const N: usize, const SZ: usize> {
     /// The name of the Client/Component
     #[serde(borrow)]
@@ -129,7 +129,7 @@ pub struct ComponentInfo<'a, const N: usize, const SZ: usize> {
 
 /// Pub/Sub Short Code Registration
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Reroot)]
+#[derive(Debug, Serialize, Deserialize, Clone, Reroot)]
 pub struct PubSubShort<'a, const N: usize, const SZ: usize> {
     /// The 'long' UTF-8 path to register
     #[serde(borrow)]

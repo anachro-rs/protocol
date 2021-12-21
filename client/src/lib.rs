@@ -10,8 +10,9 @@ pub use {
         client_io::{ClientIo, ClientIoError},
         table::{Table, TableError},
     },
-    anachro_icd::{self, arbitrator::SubMsg, ManagedString, Path, PubSubPath, Version},
+    anachro_icd::{self, arbitrator::SubMsg, Path, PubSubPath, Version},
     postcard::{from_bytes, from_bytes_cobs, to_slice, to_slice_cobs},
+    byte_slab::{ManagedArcStr, ManagedArcSlab},
 };
 
 mod client;
@@ -36,14 +37,14 @@ impl From<ClientIoError> for Error {
 
 /// A message that has been received FROM the Broker, TO the Client
 #[derive(Debug)]
-pub struct RecvMsg<T: Table> {
-    pub path: Path<'static>,
+pub struct RecvMsg<T: Table, const N: usize, const SZ: usize> {
+    pub path: Path<'static, N, SZ>,
     pub payload: T,
 }
 
 /// A message to be sent TO the Broker, FROM the Client
 #[derive(Debug)]
-pub struct SendMsg<'a> {
-    pub buf: &'a [u8],
-    pub path: &'static str,
+pub struct SendMsg<'a, const N: usize, const SZ: usize> {
+    pub buf: ManagedArcSlab<'a, N, SZ>,
+    pub path: ManagedArcStr<'a, N, SZ>,
 }

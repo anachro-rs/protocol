@@ -17,6 +17,17 @@ license = "MIT OR Apache-2.0"
 anachro-icd = { version = "0.2.0", path = "../icd" }
 postcard = "0.7.2"
 
+[dependencies.byte-slab]
+version = "0.2.2"
+default-features = false
+features = ["defmt"]
+# TODO: How to activate defmt features conditionally?
+# For now, the client needs to activate the defmt feature
+# if they want it
+
+[dependencies.byte-slab-derive]
+version = "0.2.1"
+
 [dependencies.defmt]
 version = "0.3.0"
 optional = true
