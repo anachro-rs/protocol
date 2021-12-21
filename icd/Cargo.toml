@@ -21,6 +21,17 @@ optional = true
 version = "0.7.8"
 features = ["defmt-impl"]
 
+[dependencies.byte-slab]
+version = "0.2.2"
+default-features = false
+features = ["defmt"]
+# TODO: How to activate defmt features conditionally?
+# For now, the client needs to activate the defmt feature
+# if they want it
+
+[dependencies.byte-slab-derive]
+version = "0.2.1"
+
 [dependencies.serde]
 version = "1.0.114"
 default-features = false

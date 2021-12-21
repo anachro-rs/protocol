@@ -7,15 +7,17 @@
 //! message sent by the Arbitrator.
 
 use crate::{PubSubPath, Uuid};
+use byte_slab::ManagedArcSlab;
 use serde::{Deserialize, Serialize};
+use byte_slab_derive::Reroot;
 
 /// The primary Arbitrator mesage
 ///
 /// These are all messages that are sent FROM the Arbitrator,
 /// TO the Components/Clients
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq)]
-pub enum Arbitrator<'a> {
+#[derive(Debug, Serialize, Deserialize, Reroot)]
+pub enum Arbitrator<'a, const N: usize, const SZ: usize> {
     /// Control messages
     ///
     /// Control messages are intended to be the primary
@@ -28,7 +30,7 @@ pub enum Arbitrator<'a> {
     /// These are messages sent on the Publish/Subscribe
     /// channel
     #[serde(borrow)]
-    PubSub(Result<PubSubResponse<'a>, PubSubError>),
+    PubSub(Result<PubSubResponse<'a, N, SZ>, PubSubError>),
 
     /// Object Store messages
     ///
@@ -48,63 +50,26 @@ pub enum Arbitrator<'a> {
     Mailbox,
 }
 
-// // UGH
-// impl<'a> Arbitrator<'a> {
-//     fn to_owned(&self) -> Arbitrator<'static> {
-//         match self {
-//             Arbitrator::Control(ctrl) => {
-//                 Arbitrator::Control((*ctrl).clone())
-//             },
-//             Arbitrator::Mailbox => Arbitrator::Mailbox,
-//             Arbitrator::ObjStore => Arbitrator::ObjStore,
-//             Arbitrator::PubSub(res) => {
-//                 match res {
-//                     Ok(msg) => {
-//                         match msg {
-//                             PubSubResponse::SubAck { path } => {
-//                                 match path {
-//                                     PubSubPath::Long(mng) => Arbitrator::PubSub(Ok(PubSubResponse::SubAck { path: PubSubPath::Long(mng.try_to_owned().unwrap()) })),
-//                                     PubSubPath::Short(id) => Arbitrator::PubSub(Ok(PubSubResponse::SubAck { path: PubSubPath::Short(*id) })),
-//                                 }
-//                             }
-//                             PubSubResponse::SubMsg(msg) => {
-//                                 Arbitrator::PubSub(Ok(PubSubResponse::SubMsg(SubMsg {
-//                                     path: match msg.path {
-//                                         PubSubPath::Long(mng) => PubSubPath::Long(mng.try_to_owned().unwrap()),
-//                                         PubSubPath::Short(id) => PubSubPath::Short(id),
-//                                     },
-//                                     payload: msg.payload, // :(((((((
-//                                 })))
-//                             }
-//                         }
-//                     },
-//                     Err(e) => Arbitrator::PubSub(Err(*e)),
-//                 }
-//             },
-//         }
-//     }
-// }
-
 /// An Arbitrator Response to a Pub/Sub message
 ///
 /// These are any Arbitrator -> Client relevant messages
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq)]
-pub enum PubSubResponse<'a> {
+#[derive(Debug, Serialize, Deserialize, Reroot)]
+pub enum PubSubResponse<'a, const N: usize, const SZ: usize> {
     /// Subscription Acknowledgement
     ///
     /// Sent to acknowledge the reception of subscription
     /// request from a client
     SubAck {
         #[serde(borrow)]
-        path: PubSubPath<'a>,
+        path: PubSubPath<'a, N, SZ>,
     },
 
     /// Subscription Message
     ///
     /// This is a "subscribed to" message, containing a
     /// payload sent by another Client
-    SubMsg(SubMsg<'a>),
+    SubMsg(SubMsg<'a, N, SZ>),
 }
 
 /// Subscription Message
@@ -112,17 +77,18 @@ pub enum PubSubResponse<'a> {
 /// This is a message that has been subscribed to by a
 /// client.
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq)]
-pub struct SubMsg<'a> {
+#[derive(Debug, Serialize, Deserialize, Reroot)]
+pub struct SubMsg<'a, const N: usize, const SZ: usize> {
     /// The path that this message was sent to
     ///
     /// Note: If the client used wildcard subscribe(s), this
     /// may not match the subscription text
     #[serde(borrow)]
-    pub path: PubSubPath<'a>,
+    pub path: PubSubPath<'a, N, SZ>,
 
     /// The payload sent along with the message
-    pub payload: &'a [u8],
+    #[serde(borrow)]
+    pub payload: ManagedArcSlab<'a, N, SZ>,
 }
 
 /// Control Message
@@ -131,7 +97,7 @@ pub struct SubMsg<'a> {
 /// and managing connections between the Arbitrator and
 /// Client(s).
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Reroot)]
 pub struct Control {
     /// Sequence Number
     ///
@@ -150,7 +116,7 @@ pub struct Control {
 ///
 /// A successful response to a Client's request
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Copy)]
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, Reroot)]
 pub enum ControlResponse {
     /// The client/component has registered
     ComponentRegistration(Uuid),
@@ -161,7 +127,7 @@ pub enum ControlResponse {
 
 /// Control Message Errors
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Copy)]
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, Reroot)]
 pub enum ControlError {
     NoWildcardsInShorts,
     ResetConnection,
@@ -169,7 +135,7 @@ pub enum ControlError {
 
 /// Publish/Subscribe Errors
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Copy)]
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, Reroot)]
 pub enum PubSubError {}
 
 #[cfg(test)]
