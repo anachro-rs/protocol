@@ -23,7 +23,7 @@ pub enum TableError {
 /// A trait describing publish and subscription topics
 ///
 /// This is used to interact with the `Client` interface.
-pub trait Table: Sized {
+pub trait Table<const N: usize, const SZ: usize>: Sized {
     /// A slice of all paths that the client subscribes to
     fn sub_paths() -> &'static [&'static str];
 
@@ -31,7 +31,7 @@ pub trait Table: Sized {
     fn pub_paths() -> &'static [&'static str];
 
     /// Create a Table item from a given SubMsg`
-    fn from_pub_sub<'a, const N: usize, const SZ: usize>(msg: &'a SubMsg<'a, N, SZ>) -> Result<Self, TableError>;
+    fn from_pub_sub(msg: SubMsg<'static, N, SZ>) -> Result<Self, TableError>;
 }
 
 /// A macro for defining a publish and subscribe table
@@ -80,15 +80,16 @@ macro_rules! pubsub_table {
             `pubsub_table!()` macro.
         "]
         #[derive(Debug, serde::Deserialize, Clone)]
-        pub enum $enum_ty {
+        pub enum $enum_ty<const N: usize, const SZ: usize> {
             $($sub_variant_name($sub_variant_ty)),+,
             $($pub_variant_name($pub_variant_ty)),+,
         }
 
-        impl $crate::Table for $enum_ty {
-            fn from_pub_sub<'a>(msg: &'a $crate::SubMsg<'a>) -> core::result::Result<Self, $crate::TableError> {
+        impl<const N: usize, const SZ: usize> $crate::Table<N, SZ> for $enum_ty<N, SZ> {
+            fn from_pub_sub(msg: $crate::SubMsg<'static, N, SZ>) -> core::result::Result<Self, $crate::TableError> {
+                use core::ops::Deref;
                 let msg_path = match msg.path {
-                    $crate::anachro_icd::PubSubPath::Long(ref path) => path.as_str(),
+                    $crate::anachro_icd::PubSubPath::Long(ref path) => path.deref(),
                     $crate::anachro_icd::PubSubPath::Short(sid) => {
                         if sid < $crate::PUBLISH_SHORTCODE_OFFSET {
                             // Subscribe
@@ -112,7 +113,7 @@ macro_rules! pubsub_table {
                     if $crate::anachro_icd::matches(msg_path, $sub_path) {
                         return Ok(
                             $enum_ty::$sub_variant_name(
-                                $crate::from_bytes(msg.payload)
+                                $crate::from_bytes(msg.payload.deref())
                                     .map_err(|e| $crate::TableError::Postcard(e))?
                             )
                         );
@@ -122,7 +123,7 @@ macro_rules! pubsub_table {
                     if $crate::anachro_icd::matches(msg_path, $pub_path) {
                         return Ok(
                             $enum_ty::$pub_variant_name(
-                                $crate::from_bytes(msg.payload)
+                                $crate::from_bytes(msg.payload.deref())
                                     .map_err(|e| $crate::TableError::Postcard(e))?
                             )
                         );
@@ -140,7 +141,7 @@ macro_rules! pubsub_table {
             }
         }
 
-        impl $enum_ty {
+        impl<const N: usize, const SZ: usize> $enum_ty<N, SZ> {
             #[doc = "
                 Get the publish path for a given variant.
 
@@ -164,14 +165,14 @@ macro_rules! pubsub_table {
                 Returns an Error if serialization failed, typically due to not enough space
                 in the destination buffer.
             "]
-            pub fn serialize<'a>(&self, buffer: &'a mut [u8]) -> core::result::Result<$crate::SendMsg<'a>, ()> {
+            pub fn serialize<'a>(&self, buffer: &'a mut [u8]) -> core::result::Result<$crate::SendMsg<'a, N, SZ>, ()> {
                 match self {
                     $(
                         $enum_ty::$pub_variant_name(msg) => {
                             Ok($crate::SendMsg {
-                                buf: $crate::to_slice(msg, buffer)
-                                        .map_err(drop)?,
-                                path: $pub_path,
+                                buf: $crate::ManagedArcSlab::Borrowed($crate::to_slice(msg, buffer)
+                                        .map_err(drop)?),
+                                path: $crate::ManagedArcStr::Borrowed($pub_path),
                             })
                         },
                     )+

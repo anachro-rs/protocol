@@ -219,7 +219,7 @@ impl<const N: usize, const SZ: usize> Client<N, SZ> {
     ///
     /// The `anachro-icd::matches` function can be used to compare if a topic
     /// matches a given fixed or wildcard path, if necessary.
-    pub fn process_one<C: ClientIo<N, SZ>, T: Table>(
+    pub fn process_one<C: ClientIo<N, SZ>, T: Table<N, SZ>>(
         &mut self,
         cio: &mut C,
     ) -> Result<Option<RecvMsg<T, N, SZ>>, Error> {
@@ -640,10 +640,10 @@ impl<const N: usize, const SZ: usize> Client<N, SZ> {
     }
 
     /// Process messages while in a Connected state
-    fn active<C: ClientIo<N, SZ>, T: Table>(&mut self, cio: &mut C) -> Result<Option<RecvMsg<T, N, SZ>>, Error> {
+    fn active<C: ClientIo<N, SZ>, T: Table<N, SZ>>(&mut self, cio: &mut C) -> Result<Option<RecvMsg<T, N, SZ>>, Error> {
         let msg = cio.recv()?;
         let pubsub = match msg {
-            Some(Arbitrator::PubSub(Ok(PubSubResponse::SubMsg(ref ps)))) => ps,
+            Some(Arbitrator::PubSub(Ok(PubSubResponse::SubMsg(ps)))) => ps,
             Some(_) => {
                 // TODO: Maybe something else? return err?
                 return Ok(None);
