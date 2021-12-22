@@ -112,7 +112,7 @@ impl<const N: usize, const SZ: usize> Client<N, SZ> {
     /// 10ms, a `timeout_ticks: Some(100)` would automatically timeout after
     /// 1s of waiting for a response.
     pub fn new(
-        name: ManagedArcStr<'static, N, SZ>,
+        name: &'static str,
         version: Version,
         ctr_init: u16,
         sub_paths: &'static [&'static str],
@@ -120,7 +120,7 @@ impl<const N: usize, const SZ: usize> Client<N, SZ> {
         timeout_ticks: Option<u8>,
     ) -> Self {
         Self {
-            name,
+            name: ManagedArcStr::Borrowed(name),
             version,
             ctr: ctr_init,
             state: ClientState::Disconnected,
