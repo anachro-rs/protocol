@@ -569,7 +569,7 @@ impl<const N: usize, const SZ: usize> Client<N, SZ> {
         };
 
         #[cfg(feature = "defmt")] defmt::trace!("active match: {:?}", path);
-        let path_match = T::sub_paths().iter().find(|sp| matches(sp, &path));
+        let path_match = self.sub_paths.iter().find(|sp| matches(sp, &path));
 
         if let Some(pm) = path_match {
             if let Ok(payload) = T::from_sub_msg(

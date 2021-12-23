@@ -38,7 +38,7 @@ impl From<ClientIoError> for Error {
 /// A message that has been received FROM the Broker, TO the Client
 pub struct RecvMsg<T: Table<N, SZ>, const N: usize, const SZ: usize> {
     pub path: Path<'static, N, SZ>,
-    pub payload: T,
+    pub payload: T::Message,
     pub arc: SlabArc<N, SZ>,
 }
 

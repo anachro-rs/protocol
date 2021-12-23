@@ -26,11 +26,7 @@ pub enum TableError {
 ///
 /// This is used to interact with the `Client` interface.
 pub trait Table<const N: usize, const SZ: usize>: Sized {
-    /// A slice of all paths that the client subscribes to
-    fn sub_paths() -> &'static [&'static str];
-
-    /// A slice of all paths that the client publishes to
-    fn pub_paths() -> &'static [&'static str];
+    type Message: Sized;
 
     /// Create a Table item from a given SubMsg`
     fn from_sub_msg(
@@ -38,5 +34,5 @@ pub trait Table<const N: usize, const SZ: usize>: Sized {
         path: ManagedArcStr<'static, N, SZ>,
         msg: SubMsg<'static, N, SZ>,
         arc: &SlabArc<N, SZ>
-    ) -> Result<Self, TableError>;
+    ) -> Result<Self::Message, TableError>;
 }
