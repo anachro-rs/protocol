@@ -17,6 +17,7 @@
 //! Or to enqueue/dequeue messages upon request.
 
 use anachro_icd::{arbitrator::Arbitrator, component::Component};
+use byte_slab::SlabArc;
 
 /// The Error type of the ClientIo interface
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
@@ -34,10 +35,15 @@ pub enum ClientIoError {
     OutputFull,
 }
 
+pub struct RecvPayload<const N: usize, const SZ: usize> {
+    pub msg: Arbitrator<'static, N, SZ>,
+    pub arc: SlabArc<N, SZ>,
+}
+
 /// A trait for defining the IO layer for a given client
 pub trait ClientIo<const N: usize, const SZ: usize> {
     /// Attempt to receive one message FROM the Arbitrator/Broker, TO the Client
-    fn recv(&mut self) -> Result<Option<Arbitrator<'static, N, SZ>>, ClientIoError>;
+    fn recv(&mut self) -> Result<Option<RecvPayload<N, SZ>>, ClientIoError>;
 
     /// Attempt to send one message TO the Arbitrator/Broker, FROM the Client
     fn send(&mut self, msg: Component<'static, N, SZ>) -> Result<(), ClientIoError>;

@@ -5,7 +5,7 @@
 
 use {
     core::ops::Deref,
-    crate::{client_io::ClientIo, table::Table, Error, RecvMsg},
+    crate::{client_io::{ClientIo, RecvPayload}, table::Table, Error, RecvMsg},
     anachro_icd::{
         self,
         arbitrator::{Arbitrator, Control as AControl, ControlResponse, PubSubResponse},
@@ -14,6 +14,7 @@ use {
             PubSubType,
         },
         Name, Path, PubSubPath, Uuid, Version,
+        matches,
     },
     byte_slab::{ManagedArcStr, ManagedArcSlab},
 };
@@ -389,7 +390,7 @@ impl<const N: usize, const SZ: usize> Client<N, SZ> {
         #[cfg(feature = "defmt")] defmt::info!("Got PR response");
         // println!("got pr mesg!");
 
-        if let Arbitrator::Control(AControl { seq, response }) = msg {
+        if let Arbitrator::Control(AControl { seq, response }) = msg.msg {
             if seq != self.ctr {
                 #[cfg(feature = "defmt")] defmt::warn!("ctr mismatch! {:?} {:?}", seq, self.ctr);
                 self.current_tick = self.current_tick.saturating_add(1);
@@ -451,7 +452,7 @@ impl<const N: usize, const SZ: usize> Client<N, SZ> {
 
         if let Arbitrator::PubSub(Ok(PubSubResponse::SubAck {
             path: PubSubPath::Long(pth),
-        })) = msg
+        })) = msg.msg
         {
             if pth.deref() == self.sub_paths[self.current_idx] {
                 self.current_idx += 1;
@@ -540,7 +541,7 @@ impl<const N: usize, const SZ: usize> Client<N, SZ> {
         if let Arbitrator::Control(AControl {
             seq,
             response: Ok(ControlResponse::PubSubShortRegistration(sid)),
-        }) = msg
+        }) = msg.msg
         {
             if seq == self.ctr && sid == (self.current_idx as u16) {
                 self.current_idx += 1;
@@ -606,7 +607,7 @@ impl<const N: usize, const SZ: usize> Client<N, SZ> {
         if let Arbitrator::Control(AControl {
             seq,
             response: Ok(ControlResponse::PubSubShortRegistration(sid)),
-        }) = msg
+        }) = msg.msg
         {
             if seq == self.ctr && sid == ((self.current_idx as u16) | PUBLISH_SHORTCODE_OFFSET) {
                 self.current_idx += 1;
@@ -642,8 +643,8 @@ impl<const N: usize, const SZ: usize> Client<N, SZ> {
     /// Process messages while in a Connected state
     fn active<C: ClientIo<N, SZ>, T: Table<N, SZ>>(&mut self, cio: &mut C) -> Result<Option<RecvMsg<T, N, SZ>>, Error> {
         let msg = cio.recv()?;
-        let pubsub = match msg {
-            Some(Arbitrator::PubSub(Ok(PubSubResponse::SubMsg(ps)))) => ps,
+        let (pubsub, arc) = match msg {
+            Some(RecvPayload { msg: Arbitrator::PubSub(Ok(PubSubResponse::SubMsg(ps))), arc } ) => (ps, arc),
             Some(_) => {
                 // TODO: Maybe something else? return err?
                 return Ok(None);
@@ -657,10 +658,10 @@ impl<const N: usize, const SZ: usize> Client<N, SZ> {
         let path = match &pubsub.path {
             PubSubPath::Short(sid) => {
                 Path::Borrowed(
-                *self
-                    .sub_paths
-                    .get(*sid as usize)
-                    .ok_or(Error::UnexpectedMessage)?,
+                    *self
+                        .sub_paths
+                        .get(*sid as usize)
+                        .ok_or(Error::UnexpectedMessage)?,
                 )
             },
             PubSubPath::Long(ms) => {
@@ -668,17 +669,23 @@ impl<const N: usize, const SZ: usize> Client<N, SZ> {
             },
         };
 
-        let payload = match T::from_pub_sub(pubsub) {
-            Ok(msg) => msg,
-            Err(_e) => {
-                #[cfg(feature = "defmt")] defmt::error!("fps err!");
-                return Err(Error::UnexpectedMessage);
-            }
-        };
+        let path_match = T::sub_paths().iter().find(|sp| matches(sp, &path));
 
-        Ok(Some(RecvMsg {
-            path,
-            payload,
-        }))
+        if let Some(pm) = path_match {
+            if let Ok(payload) = T::from_sub_msg(
+                pm,
+                path.clone(),
+                pubsub,
+                &arc
+            ) {
+                return Ok(Some(RecvMsg {
+                    path,
+                    payload,
+                    arc,
+                }));
+            }
+        }
+
+        Err(Error::UnexpectedMessage)
     }
 }

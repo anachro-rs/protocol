@@ -7,12 +7,12 @@
 pub use {
     crate::{
         client::{Client, PUBLISH_SHORTCODE_OFFSET},
-        client_io::{ClientIo, ClientIoError},
+        client_io::{ClientIo, ClientIoError, RecvPayload},
         table::{Table, TableError},
     },
     anachro_icd::{self, arbitrator::SubMsg, Path, PubSubPath, Version},
     postcard::{from_bytes, from_bytes_cobs, to_slice, to_slice_cobs},
-    byte_slab::{ManagedArcStr, ManagedArcSlab},
+    byte_slab::{ManagedArcStr, ManagedArcSlab, SlabArc},
 };
 
 mod client;
@@ -36,10 +36,10 @@ impl From<ClientIoError> for Error {
 }
 
 /// A message that has been received FROM the Broker, TO the Client
-#[derive(Debug)]
 pub struct RecvMsg<T: Table<N, SZ>, const N: usize, const SZ: usize> {
     pub path: Path<'static, N, SZ>,
     pub payload: T,
+    pub arc: SlabArc<N, SZ>,
 }
 
 /// A message to be sent TO the Broker, FROM the Client
