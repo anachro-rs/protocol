@@ -34,7 +34,6 @@ enum ClientState {
     Registered,
     Subscribing,
     Subscribed,
-    ShortCodingSub,
     ShortCodingPub,
     Active,
 }
@@ -120,6 +119,9 @@ impl<const N: usize, const SZ: usize> Client<N, SZ> {
         pub_short_paths: &'static [&'static str],
         timeout_ticks: Option<u8>,
     ) -> Self {
+
+        // TODO: Verify no publish paths have wildcards?
+
         Self {
             name: ManagedArcStr::Borrowed(name),
             version,
@@ -286,27 +288,6 @@ impl<const N: usize, const SZ: usize> Client<N, SZ> {
             // =====================================
             // ShortCoding
             // =====================================
-            ClientState::ShortCodingSub => {
-                self.shortcoding_sub(cio)?;
-
-                if self.timeout_violated() {
-                    #[cfg(feature = "defmt")] defmt::info!("SCS timeout. Resending");
-                    self.ctr = self.ctr.wrapping_add(1);
-
-                    let msg = Component::Control(CControl {
-                        seq: self.ctr,
-                        ty: ControlType::RegisterPubSubShortId(PubSubShort {
-                            long_name: ManagedArcStr::Borrowed(self.sub_paths[self.current_idx]),
-                            short_id: self.current_idx as u16,
-                        }),
-                    });
-
-                    cio.send(msg)?;
-
-                    self.current_tick = 0;
-                }
-            }
-
             ClientState::ShortCodingPub => {
                 self.shortcoding_pub(cio)?;
 
@@ -484,12 +465,12 @@ impl<const N: usize, const SZ: usize> Client<N, SZ> {
 
     /// Process messages while in a `ClientState::Subscribed` state
     fn subscribed<C: ClientIo<N, SZ>>(&mut self, cio: &mut C) -> Result<(), Error> {
-        match (self.sub_paths.len(), self.pub_short_paths.len()) {
-            (0, 0) => {
+        match self.pub_short_paths.len() {
+            0 => {
                 self.state = ClientState::Active;
                 self.current_tick = 0;
             }
-            (0, _n) => {
+            _n => {
                 self.ctr = self.ctr.wrapping_add(1);
                 let msg = Component::Control(CControl {
                     seq: self.ctr,
@@ -505,91 +486,7 @@ impl<const N: usize, const SZ: usize> Client<N, SZ> {
                 self.current_tick = 0;
                 self.current_idx = 0;
             }
-            (_n, _) => {
-                // TODO: This doesn't handle the case when the subscribe shortcode is
-                // a wildcard, which the broker will reject
-                self.ctr = self.ctr.wrapping_add(1);
-                let msg = Component::Control(CControl {
-                    seq: self.ctr,
-                    ty: ControlType::RegisterPubSubShortId(PubSubShort {
-                        long_name: ManagedArcStr::Borrowed(self.sub_paths[0]),
-                        short_id: 0x0000,
-                    }),
-                });
-
-                cio.send(msg)?;
-
-                self.state = ClientState::ShortCodingSub;
-                self.current_tick = 0;
-                self.current_idx = 0;
-            }
         }
-        Ok(())
-    }
-
-    /// Process messages while in a `ClientState::ShortcodingSub` state
-    fn shortcoding_sub<C: ClientIo<N, SZ>>(&mut self, cio: &mut C) -> Result<(), Error> {
-        let msg = cio.recv()?;
-        let msg = match msg {
-            Some(msg) => msg,
-            None => {
-                self.current_tick = self.current_tick.saturating_add(1);
-                return Ok(());
-            }
-        };
-
-        if let Arbitrator::Control(AControl {
-            seq,
-            response: Ok(ControlResponse::PubSubShortRegistration(sid)),
-        }) = msg.msg
-        {
-            if seq == self.ctr && sid == (self.current_idx as u16) {
-                self.current_idx += 1;
-
-                if self.current_idx >= self.sub_paths.len() {
-                    if self.pub_short_paths.is_empty() {
-                        self.state = ClientState::Active;
-                        self.current_tick = 0;
-                    } else {
-                        self.ctr = self.ctr.wrapping_add(1);
-
-                        let msg = Component::Control(CControl {
-                            seq: self.ctr,
-                            ty: ControlType::RegisterPubSubShortId(PubSubShort {
-                                long_name: ManagedArcStr::Borrowed(self.pub_short_paths[0]),
-                                short_id: PUBLISH_SHORTCODE_OFFSET,
-                            }),
-                        });
-
-                        cio.send(msg)?;
-
-                        self.current_tick = 0;
-                        self.current_idx = 0;
-                        self.state = ClientState::ShortCodingPub;
-                    }
-                } else {
-                    self.ctr = self.ctr.wrapping_add(1);
-
-                    // TODO: This doesn't handle subscriptions with wildcards
-                    let msg = Component::Control(CControl {
-                        seq: self.ctr,
-                        ty: ControlType::RegisterPubSubShortId(PubSubShort {
-                            long_name: ManagedArcStr::Borrowed(self.sub_paths[self.current_idx]),
-                            short_id: self.current_idx as u16,
-                        }),
-                    });
-
-                    cio.send(msg)?;
-
-                    self.current_tick = 0;
-                }
-            } else {
-                self.current_tick = self.current_tick.saturating_add(1);
-            }
-        } else {
-            self.current_tick = self.current_tick.saturating_add(1);
-        }
-
         Ok(())
     }
 
