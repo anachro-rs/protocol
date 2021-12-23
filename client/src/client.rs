@@ -185,8 +185,8 @@ impl<const N: usize, const SZ: usize> Client<N, SZ> {
     /// The serialized payload to publish. This is typically created by using
     /// the `Table::serialize()` method, which returns a path and the serialized
     /// payload
-    pub fn publish<'a, 'b: 'a, C: ClientIo<N, SZ>>(
-        &'b self,
+    pub fn publish<C: ClientIo<N, SZ>>(
+        &self,
         cio: &mut C,
         path: ManagedArcStr<'static, N, SZ>,
         payload: ManagedArcSlab<'static, N, SZ>,
@@ -554,6 +554,7 @@ impl<const N: usize, const SZ: usize> Client<N, SZ> {
         // Determine the path
         let path = match &pubsub.path {
             PubSubPath::Short(sid) => {
+                #[cfg(feature = "defmt")] defmt::trace!("sid: {:?}", sid);
                 Path::Borrowed(
                     *self
                         .sub_paths
@@ -562,10 +563,12 @@ impl<const N: usize, const SZ: usize> Client<N, SZ> {
                 )
             },
             PubSubPath::Long(ms) => {
+                #[cfg(feature = "defmt")] defmt::trace!("lid: {:?}", ms.deref());
                 ms.clone()
             },
         };
 
+        #[cfg(feature = "defmt")] defmt::trace!("active match: {:?}", path);
         let path_match = T::sub_paths().iter().find(|sp| matches(sp, &path));
 
         if let Some(pm) = path_match {

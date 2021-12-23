@@ -172,9 +172,11 @@ impl<const N: usize, const SZ: usize> Broker<N, SZ> {
             }
             Component::PubSub(PubSub { path, ty }) => match ty {
                 PubSubType::Pub { payload } => {
+                    defmt::info!("Broker: Got Publish");
                     self.process_publish(sio_out, path, payload, source)?;
                 }
                 PubSubType::Sub => {
+                    defmt::info!("Broker: Got Subscribe");
                     let client = self.client_by_id_mut(&source)?;
                     sio_out
                         .push_response(client.process_subscribe(path)?)
@@ -242,25 +244,6 @@ impl<const N: usize, const SZ: usize> Broker<N, SZ> {
 
             for subt in state.subscriptions.iter() {
                 if anachro_icd::matches(subt.deref(), path.deref()) {
-                    // Does the destination have a shortcut for this?
-                    for short in state.shortcuts.iter() {
-                        // NOTE: we use path, NOT subt, as it may contain wildcards
-                        if path.deref() == short.long.deref() {
-                            let msg = Arbitrator::PubSub(Ok(arbitrator::PubSubResponse::SubMsg(
-                                SubMsg {
-                                    path: PubSubPath::Short(short.short),
-                                    payload: payload.clone(),
-                                },
-                            )));
-                            sio.push_response(Response {
-                                dest: client.id,
-                                msg,
-                            })
-                            .map_err(|_| ServerError::ResourcesExhausted)?;
-                            continue 'client;
-                        }
-                    }
-
                     let msg = Arbitrator::PubSub(Ok(arbitrator::PubSubResponse::SubMsg(SubMsg {
                         path: PubSubPath::Long(path.clone()),
                         payload: payload.clone(),
