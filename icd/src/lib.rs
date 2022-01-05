@@ -78,7 +78,7 @@ impl Uuid {
     }
 
     /// Obtain the UUID contents as a borrowed array of bytes
-    pub fn as_bytes(&self) -> &[u8; 16] {
+    pub const fn as_bytes(&self) -> &[u8; 16] {
         &self.0
     }
 
