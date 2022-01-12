@@ -10,6 +10,7 @@ use {
         component::{
             Component, ComponentInfo, Control, ControlType, PubSub, PubSubShort, PubSubType,
         },
+        CONFIG,
     },
     byte_slab::ManagedArcSlab,
     core::default::Default,
@@ -22,7 +23,7 @@ pub use anachro_icd::{self, Name, Path, PubSubPath, Uuid, Version};
 use defmt::Format;
 pub use postcard::from_bytes_cobs;
 
-type ClientStore<const N: usize, const SZ: usize> = Vec<Client<N, SZ>, 8>;
+type ClientStore = Vec<Client, 8>;
 
 /// The Broker Interface
 ///
@@ -37,8 +38,8 @@ type ClientStore<const N: usize, const SZ: usize> = Vec<Client<N, SZ>, 8>;
 /// As a note, the Broker currently creates a sizable object, due
 /// to the fixed upper limits
 #[derive(Default)]
-pub struct Broker<const N: usize, const SZ: usize> {
-    clients: ClientStore<N, SZ>,
+pub struct Broker {
+    clients: ClientStore,
 }
 
 #[derive(Debug, PartialEq, Eq, Format)]
@@ -53,7 +54,7 @@ pub enum ServerError {
     DeserializeFailure,
 }
 
-pub const fn reset_msg<const N: usize, const SZ: usize>() -> Arbitrator<'static, N, SZ> {
+pub const fn reset_msg() -> Arbitrator<'static> {
     Arbitrator::Control(AControl {
         response: Err(ControlError::ResetConnection),
         seq: 0,
@@ -61,7 +62,7 @@ pub const fn reset_msg<const N: usize, const SZ: usize>() -> Arbitrator<'static,
 }
 
 // Public Interfaces
-impl<const N: usize, const SZ: usize> Broker<N, SZ> {
+impl Broker {
     /// Create a new broker with no clients attached
     #[inline(always)]
     pub fn new() -> Self {
@@ -130,7 +131,7 @@ impl<const N: usize, const SZ: usize> Broker<N, SZ> {
     /// that client to force them to reconnect. You may also want to `remove_client`
     /// or `reset_client`, depending on the situation. This will hopefully be handled
     /// automatically in the future.
-    pub fn process_msg<SI: ServerIoIn<N, SZ>, SO: ServerIoOut<N, SZ>>(
+    pub fn process_msg<SI: ServerIoIn, SO: ServerIoOut>(
         &mut self,
         sio_in: &mut SI,
         sio_out: &mut SO,
@@ -195,19 +196,19 @@ impl<const N: usize, const SZ: usize> Broker<N, SZ> {
 }
 
 // Private interfaces
-impl<const N: usize, const SZ: usize> Broker<N, SZ> {
-    fn client_by_id_mut(&mut self, id: &Uuid) -> Result<&mut Client<N, SZ>, ServerError> {
+impl Broker {
+    fn client_by_id_mut(&mut self, id: &Uuid) -> Result<&mut Client, ServerError> {
         self.clients
             .iter_mut()
             .find(|c| &c.id == id)
             .ok_or(ServerError::UnknownClient)
     }
 
-    fn process_publish<SO: ServerIoOut<N, SZ>>(
+    fn process_publish<SO: ServerIoOut>(
         &mut self,
         sio: &mut SO,
-        path: PubSubPath<'static, N, SZ>,
-        payload: ManagedArcSlab<'static, N, SZ>,
+        path: PubSubPath<'static>,
+        payload: ManagedArcSlab<'static, {CONFIG.slab_count}, {CONFIG.slab_size}>,
         source: Uuid,
     ) -> Result<(), ServerError> {
         // TODO: Make sure we're not publishing to wildcards
@@ -262,13 +263,13 @@ impl<const N: usize, const SZ: usize> Broker<N, SZ> {
     }
 }
 
-struct Client<const N: usize, const SZ: usize> {
+struct Client {
     id: Uuid,
-    state: ClientState<N, SZ>,
+    state: ClientState,
 }
 
-impl<const N: usize, const SZ: usize> Client<N, SZ> {
-    fn process_control(&mut self, ctrl: Control<'static, N, SZ>) -> Result<Option<Response<'static, N, SZ>>, ServerError> {
+impl Client {
+    fn process_control(&mut self, ctrl: Control<'static>) -> Result<Option<Response<'static>>, ServerError> {
         let response;
 
         let next = match ctrl.ty {
@@ -357,8 +358,8 @@ impl<const N: usize, const SZ: usize> Client<N, SZ> {
 
     fn process_subscribe(
         &mut self,
-        path: PubSubPath<'static, N, SZ>,
-    ) -> Result<Response<'static, N, SZ>, ServerError> {
+        path: PubSubPath<'static>,
+    ) -> Result<Response<'static>, ServerError> {
         let state = self.state.as_connected_mut()?;
 
         // Determine canonical path
@@ -396,7 +397,7 @@ impl<const N: usize, const SZ: usize> Client<N, SZ> {
         })
     }
 
-    fn process_unsub(&mut self, _path: PubSubPath<'static, N, SZ>) -> Result<(), ServerError> {
+    fn process_unsub(&mut self, _path: PubSubPath<'static>) -> Result<(), ServerError> {
         let _state = self.state.as_connected_mut()?;
 
         todo!()
@@ -405,20 +406,20 @@ impl<const N: usize, const SZ: usize> Client<N, SZ> {
 
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug)]
-enum ClientState<const N: usize, const SZ: usize> {
+enum ClientState {
     SessionEstablished,
-    Connected(ConnectedState<N, SZ>),
+    Connected(ConnectedState),
 }
 
-impl<const N: usize, const SZ: usize> ClientState<N, SZ> {
-    fn as_connected(&self) -> Result<&ConnectedState<N, SZ>, ServerError> {
+impl ClientState {
+    fn as_connected(&self) -> Result<&ConnectedState, ServerError> {
         match self {
             ClientState::Connected(state) => Ok(state),
             _ => Err(ServerError::ClientDisconnected),
         }
     }
 
-    fn as_connected_mut(&mut self) -> Result<&mut ConnectedState<N, SZ>, ServerError> {
+    fn as_connected_mut(&mut self) -> Result<&mut ConnectedState, ServerError> {
         match self {
             ClientState::Connected(ref mut state) => Ok(state),
             _ => Err(ServerError::ClientDisconnected),
@@ -427,16 +428,16 @@ impl<const N: usize, const SZ: usize> ClientState<N, SZ> {
 }
 
 #[derive(Debug)]
-struct ConnectedState<const N: usize, const SZ: usize> {
-    _name: Name<'static, N, SZ>,
+struct ConnectedState {
+    _name: Name<'static>,
     _version: Version,
-    subscriptions: Vec<Path<'static, N, SZ>, 8>,
-    shortcuts: Vec<Shortcut<N, SZ>, 8>,
+    subscriptions: Vec<Path<'static>, 8>,
+    shortcuts: Vec<Shortcut, 8>,
 }
 
 #[derive(Debug)]
-struct Shortcut<const N: usize, const SZ: usize> {
-    long: Path<'static, N, SZ>,
+struct Shortcut {
+    long: Path<'static>,
     short: u16,
 }
 
@@ -444,18 +445,18 @@ struct Shortcut<const N: usize, const SZ: usize> {
 ///
 /// This message is addressed by a UUID used when registering the client
 #[derive(Debug)]
-pub struct Request<'a, const N: usize, const SZ: usize> {
+pub struct Request<'a> {
     pub source: Uuid,
-    pub msg: Component<'a, N, SZ>,
+    pub msg: Component<'a>,
 }
 
 /// A response TO the Client, FROM the Broker
 ///
 /// This message is addressed by a UUID used when registering the client
 #[derive(Debug)]
-pub struct Response<'a, const N: usize, const SZ: usize> {
+pub struct Response<'a> {
     pub dest: Uuid,
-    pub msg: Arbitrator<'a, N, SZ>,
+    pub msg: Arbitrator<'a>,
 }
 
 #[derive(Debug, Format)]
@@ -464,17 +465,17 @@ pub enum ServerIoError {
     DeserializeFailure,
 }
 
-pub trait ServerIoIn<const N: usize, const SZ: usize> {
-    fn recv(&mut self) -> Result<Option<Request<'static, N, SZ>>, ServerIoError>;
+pub trait ServerIoIn {
+    fn recv(&mut self) -> Result<Option<Request<'static>>, ServerIoError>;
 }
 
-pub trait ServerIoOut<const N: usize, const SZ: usize> {
-    fn push_response(&mut self, resp: Response<'static, N, SZ>) -> Result<(), ServerIoError>;
+pub trait ServerIoOut {
+    fn push_response(&mut self, resp: Response<'static>) -> Result<(), ServerIoError>;
 }
 
-impl<'resp, const N: usize, const SZ: usize, const CT: usize> ServerIoOut<N, SZ> for Vec<Response<'static, N, SZ>, CT>
+impl<'resp, const CT: usize> ServerIoOut for Vec<Response<'static>, CT>
 {
-    fn push_response(&mut self, resp: Response<'static, N, SZ>) -> core::result::Result<(), ServerIoError> {
+    fn push_response(&mut self, resp: Response<'static>) -> core::result::Result<(), ServerIoError> {
         self.push(resp)
             .map_err(|_| ServerIoError::ResponsePushFailed)
     }

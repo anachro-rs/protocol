@@ -10,7 +10,7 @@
 //! clients must agree on the same data type used for a given path or wildcard
 //! path topic.
 
-use anachro_icd::arbitrator::SubMsg;
+use anachro_icd::{CONFIG, arbitrator::SubMsg};
 use postcard;
 use byte_slab::{SlabArc, ManagedArcStr};
 
@@ -25,14 +25,14 @@ pub enum TableError {
 /// A trait describing publish and subscription topics
 ///
 /// This is used to interact with the `Client` interface.
-pub trait Table<const N: usize, const SZ: usize>: Sized {
+pub trait Table: Sized {
     type Message: Sized;
 
     /// Create a Table item from a given SubMsg`
     fn from_sub_msg(
         matched_path: &'static str,
-        path: ManagedArcStr<'static, N, SZ>,
-        msg: SubMsg<'static, N, SZ>,
-        arc: &SlabArc<N, SZ>
+        path: ManagedArcStr<'static, {CONFIG.slab_count}, {CONFIG.slab_size}>,
+        msg: SubMsg<'static>,
+        arc: &SlabArc<{CONFIG.slab_count}, {CONFIG.slab_size}>
     ) -> Result<Self::Message, TableError>;
 }

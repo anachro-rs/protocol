@@ -8,6 +8,7 @@ use {
     crate::{client_io::{ClientIo, RecvPayload}, table::Table, Error, RecvMsg},
     anachro_icd::{
         self,
+        CONFIG,
         arbitrator::{Arbitrator, Control as AControl, ControlResponse, PubSubResponse},
         component::{
             Component, ComponentInfo, Control as CControl, ControlType, PubSub, PubSubShort,
@@ -51,10 +52,10 @@ impl ClientState {
 ///
 /// This is the primary interface used by clients. It is used to track
 /// the state of a connection, and process any incoming or outgoing messages
-pub struct Client<const N: usize, const SZ: usize> {
+pub struct Client {
     state: ClientState,
     // TODO: This should probably just be a &'static str
-    name: Name<'static, N, SZ>,
+    name: Name<'static>,
     version: Version,
     ctr: u16,
     sub_paths: &'static [&'static str],
@@ -65,7 +66,7 @@ pub struct Client<const N: usize, const SZ: usize> {
     current_idx: usize,
 }
 
-impl<const N: usize, const SZ: usize> Client<N, SZ> {
+impl Client {
     /// Create a new client instance
     ///
     /// ## Parameters
@@ -185,11 +186,11 @@ impl<const N: usize, const SZ: usize> Client<N, SZ> {
     /// The serialized payload to publish. This is typically created by using
     /// the `Table::serialize()` method, which returns a path and the serialized
     /// payload
-    pub fn publish<C: ClientIo<N, SZ>>(
+    pub fn publish<C: ClientIo>(
         &self,
         cio: &mut C,
-        path: ManagedArcStr<'static, N, SZ>,
-        payload: ManagedArcSlab<'static, N, SZ>,
+        path: ManagedArcStr<'static, {CONFIG.slab_count}, {CONFIG.slab_size}>,
+        payload: ManagedArcSlab<'static, {CONFIG.slab_count}, {CONFIG.slab_size}>,
     ) -> Result<(), Error> {
         #[cfg(feature = "defmt")] defmt::info!("Publishing message.");
         self.state.as_active()?;
@@ -222,11 +223,11 @@ impl<const N: usize, const SZ: usize> Client<N, SZ> {
     ///
     /// The `anachro-icd::matches` function can be used to compare if a topic
     /// matches a given fixed or wildcard path, if necessary.
-    pub fn process_one<C: ClientIo<N, SZ>, T: Table<N, SZ>>(
+    pub fn process_one<C: ClientIo, T: Table>(
         &mut self,
         cio: &mut C,
-    ) -> Result<Option<RecvMsg<T, N, SZ>>, Error> {
-        let mut response: Option<RecvMsg<T, N, SZ>> = None;
+    ) -> Result<Option<RecvMsg<T>>, Error> {
+        let mut response: Option<RecvMsg<T>> = None;
 
         match &mut self.state {
             // =====================================
@@ -323,7 +324,7 @@ impl<const N: usize, const SZ: usize> Client<N, SZ> {
 
 // Private interfaces for the client. These are largely used to
 // process incoming messages and handle state
-impl<const N: usize, const SZ: usize> Client<N, SZ> {
+impl Client {
     /// Have we reached the timeout limit provided by the user?
     fn timeout_violated(&self) -> bool {
         match self.timeout_ticks {
@@ -334,7 +335,7 @@ impl<const N: usize, const SZ: usize> Client<N, SZ> {
     }
 
     /// Process messages while in a `ClientState::Disconnected` state
-    fn disconnected<C: ClientIo<N, SZ>>(&mut self, cio: &mut C) -> Result<(), Error> {
+    fn disconnected<C: ClientIo>(&mut self, cio: &mut C) -> Result<(), Error> {
         self.ctr += 1;
 
         #[cfg(feature = "defmt")] defmt::info!("Disconnected -> Pending Registration");
@@ -358,7 +359,7 @@ impl<const N: usize, const SZ: usize> Client<N, SZ> {
     }
 
     /// Process messages while in a `ClientState::PendingRegistration state`
-    fn pending_registration<C: ClientIo<N, SZ>>(&mut self, cio: &mut C) -> Result<(), Error> {
+    fn pending_registration<C: ClientIo>(&mut self, cio: &mut C) -> Result<(), Error> {
         let msg = cio.recv()?;
         let msg = match msg {
             Some(msg) => msg,
@@ -398,7 +399,7 @@ impl<const N: usize, const SZ: usize> Client<N, SZ> {
     }
 
     /// Process messages while in a `ClientState::Registered` state
-    fn registered<C: ClientIo<N, SZ>>(&mut self, cio: &mut C) -> Result<(), Error> {
+    fn registered<C: ClientIo>(&mut self, cio: &mut C) -> Result<(), Error> {
         if self.sub_paths.is_empty() {
             #[cfg(feature = "defmt")] defmt::info!("No subscriptions");
             self.state = ClientState::Subscribed;
@@ -421,7 +422,7 @@ impl<const N: usize, const SZ: usize> Client<N, SZ> {
     }
 
     /// Process messages while in a `ClientState::Subscribing` state
-    fn subscribing<C: ClientIo<N, SZ>>(&mut self, cio: &mut C) -> Result<(), Error> {
+    fn subscribing<C: ClientIo>(&mut self, cio: &mut C) -> Result<(), Error> {
         let msg = cio.recv()?;
         let msg = match msg {
             Some(msg) => msg,
@@ -464,7 +465,7 @@ impl<const N: usize, const SZ: usize> Client<N, SZ> {
     }
 
     /// Process messages while in a `ClientState::Subscribed` state
-    fn subscribed<C: ClientIo<N, SZ>>(&mut self, cio: &mut C) -> Result<(), Error> {
+    fn subscribed<C: ClientIo>(&mut self, cio: &mut C) -> Result<(), Error> {
         match self.pub_short_paths.len() {
             0 => {
                 self.state = ClientState::Active;
@@ -491,7 +492,7 @@ impl<const N: usize, const SZ: usize> Client<N, SZ> {
     }
 
     /// Process messages while in a `ClientState::ShortcodingPub` state
-    fn shortcoding_pub<C: ClientIo<N, SZ>>(&mut self, cio: &mut C) -> Result<(), Error> {
+    fn shortcoding_pub<C: ClientIo>(&mut self, cio: &mut C) -> Result<(), Error> {
         let msg = cio.recv()?;
         let msg = match msg {
             Some(msg) => msg,
@@ -538,7 +539,7 @@ impl<const N: usize, const SZ: usize> Client<N, SZ> {
     }
 
     /// Process messages while in a Connected state
-    fn active<C: ClientIo<N, SZ>, T: Table<N, SZ>>(&mut self, cio: &mut C) -> Result<Option<RecvMsg<T, N, SZ>>, Error> {
+    fn active<C: ClientIo, T: Table>(&mut self, cio: &mut C) -> Result<Option<RecvMsg<T>>, Error> {
         let msg = cio.recv()?;
         let (pubsub, arc) = match msg {
             Some(RecvPayload { msg: Arbitrator::PubSub(Ok(PubSubResponse::SubMsg(ps))), arc } ) => (ps, arc),

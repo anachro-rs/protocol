@@ -21,19 +21,31 @@ pub mod component;
 use byte_slab::{ManagedArcStr, Reroot};
 use byte_slab_derive::Reroot;
 
-/// A const value for the Maximum Pub/Sub Path
-pub const MAX_PATH_LEN: usize = 127;
+#[toml_cfg::toml_config]
+pub struct Config {
 
-/// A const value for the maximum device name
-pub const MAX_NAME_LEN: usize = 32;
+    /// A const value for the Maximum Pub/Sub Path
+    #[default(127)]
+    max_path_len: usize,
+
+    /// A const value for the maximum device name
+    #[default(32)]
+    max_name_len: usize,
+
+    #[default(32)]
+    slab_count: usize,
+
+    #[default(512)]
+    slab_size: usize,
+}
 
 /// Publish/Subscribe Path - Short or Long
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Reroot)]
-pub enum PubSubPath<'a, const N: usize, const SZ: usize> {
+pub enum PubSubPath<'a> {
     /// A long form, UTF-8 Path
     #[serde(borrow)]
-    Long(Path<'a, N, SZ>),
+    Long(Path<'a>),
 
     /// A short form, 'memoized' path
     ///
@@ -61,10 +73,10 @@ pub struct Version {
 }
 
 /// A Pub/Sub Path as a Managed String
-pub type Path<'a, const N: usize, const SZ: usize> = ManagedArcStr<'a, N, SZ>;
+pub type Path<'a> = ManagedArcStr<'a, {CONFIG.slab_count}, {CONFIG.slab_size}>;
 
 /// A device name as a Managed String
-pub type Name<'a, const N: usize, const SZ: usize> = ManagedArcStr<'a, N, SZ>;
+pub type Name<'a> = ManagedArcStr<'a, {CONFIG.slab_count}, {CONFIG.slab_size}>;
 
 /// A UUID as a block of 16 bytes
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]

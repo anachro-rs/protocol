@@ -10,7 +10,7 @@ pub use {
         client_io::{ClientIo, ClientIoError, RecvPayload},
         table::{Table, TableError},
     },
-    anachro_icd::{self, arbitrator::SubMsg, Path, PubSubPath, Version},
+    anachro_icd::{self, CONFIG, arbitrator::SubMsg, Path, PubSubPath, Version},
     postcard::{from_bytes, from_bytes_cobs, to_slice, to_slice_cobs},
     byte_slab::{ManagedArcStr, ManagedArcSlab, SlabArc},
 };
@@ -36,15 +36,15 @@ impl From<ClientIoError> for Error {
 }
 
 /// A message that has been received FROM the Broker, TO the Client
-pub struct RecvMsg<T: Table<N, SZ>, const N: usize, const SZ: usize> {
-    pub path: Path<'static, N, SZ>,
+pub struct RecvMsg<T: Table> {
+    pub path: Path<'static>,
     pub payload: T::Message,
-    pub arc: SlabArc<N, SZ>,
+    pub arc: SlabArc<{CONFIG.slab_count}, {CONFIG.slab_size}>,
 }
 
 /// A message to be sent TO the Broker, FROM the Client
 #[derive(Debug)]
-pub struct SendMsg<'a, const N: usize, const SZ: usize> {
-    pub buf: ManagedArcSlab<'a, N, SZ>,
-    pub path: ManagedArcStr<'a, N, SZ>,
+pub struct SendMsg<'a> {
+    pub buf: ManagedArcSlab<'a, {CONFIG.slab_count}, {CONFIG.slab_size}>,
+    pub path: ManagedArcStr<'a, {CONFIG.slab_count}, {CONFIG.slab_size}>,
 }
